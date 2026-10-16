@@ -19,8 +19,8 @@ sequence. What a duration or a count means is the application's decision.
 - A button already held at start-up can be ignored until it is released
 - GPIO input, or any caller-supplied reader (I/O expander, shift register)
 - Non-blocking `update()`, no interrupt, no task, no heap
-- Thread-safe on ESP32 and ESP8266: a callback in the owner's context, and
-  per-kind latches that any other task can take events from
+- Thread-safe on the ESP32: a callback in the owner's context, and per-kind
+  latches that any other task can take events from
 - The logic (`ButtonEventsCore`) is plain C++ with no I/O and is tested on the
   host
 
@@ -131,7 +131,7 @@ are reported once, with the current time.
 
 ## Threads
 
-On the ESP32 and ESP8266 the state is guarded by a `std::timed_mutex`.
+On the ESP32 the state is guarded by a `std::timed_mutex`.
 
 - `update()`, `begin()` and `onEvent()` belong to the owner.
 - The callback runs in the owner's context, after the lock is released, once
@@ -141,7 +141,11 @@ On the ESP32 and ESP8266 the state is guarded by a `std::timed_mutex`.
   replaced, and `overruns()` counts the replacements.
 - `isPressed()`, `busy()` and `overruns()` may be called from any task.
 
-On AVR there is no lock and everything runs in one context.
+On the ESP8266 and AVR there is no lock. These cores have no preemptive
+tasks, and what does interrupt `loop()` (an ISR, or on the ESP8266 an SDK
+callback such as `Ticker`'s) cannot wait for a lock anyway. Every call comes
+from `loop()`'s context; an ESP8266 callback that needs the button hands over
+with `schedule_function()`.
 
 ## Testing
 

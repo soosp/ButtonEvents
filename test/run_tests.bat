@@ -41,16 +41,24 @@ if errorlevel 1 set RC=1
 
 :c11
 echo ------------------------------------------------------------
-echo Building C++11 compile check (locked) ...
+echo Building C++11 compile check (host, lock) ...
 g++ %FLAGS11% compile_check.cpp -o compile_check.exe
-if errorlevel 1 ( echo BUILD FAILED: compile_check.cpp & set RC=1 & goto :avr )
+if errorlevel 1 ( echo BUILD FAILED: compile_check.cpp & set RC=1 & goto :esp8266 )
 compile_check.exe
+if errorlevel 1 set RC=1
+
+:esp8266
+echo ------------------------------------------------------------
+echo Building C++11 compile check (ESP8266, no lock) ...
+g++ %FLAGS11% -DARDUINO -DARDUINO_ARCH_ESP8266 compile_check.cpp -o compile_check_8266.exe
+if errorlevel 1 ( echo BUILD FAILED: compile_check.cpp [ESP8266] & set RC=1 & goto :avr )
+compile_check_8266.exe
 if errorlevel 1 set RC=1
 
 :avr
 echo ------------------------------------------------------------
 echo Building C++11 compile check (AVR, no lock) ...
-g++ %FLAGS11% -DARDUINO_ARCH_AVR compile_check.cpp -o compile_check_avr.exe
+g++ %FLAGS11% -DARDUINO -DARDUINO_ARCH_AVR compile_check.cpp -o compile_check_avr.exe
 if errorlevel 1 ( echo BUILD FAILED: compile_check.cpp [AVR] & set RC=1 & goto :done )
 compile_check_avr.exe
 if errorlevel 1 set RC=1

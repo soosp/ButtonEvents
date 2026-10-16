@@ -19,7 +19,7 @@
  * human input; the timing does not depend on it, only the resolution does.
  * There is no interrupt and no task inside the library.
  *
- * ## Threads (ESP32, ESP8266)
+ * ## Threads (ESP32)
  * - The state is guarded by a std::timed_mutex; update(), take() and the
  *   getters may be called from any task without corrupting it. An update()
  *   that cannot take the lock in BUTTON_EVENTS_LOCK_TIMEOUT_MS skips its
@@ -33,7 +33,12 @@
  * - take() hands the latest event of a kind to any other task, once.
  *   Each kind has one slot: an event not taken before the next of its kind
  *   is replaced, and overruns() counts such replacements.
- * On AVR there is no lock; everything runs in one context.
+ * ## ESP8266 and AVR
+ * There is no lock: these cores have no preemptive tasks, and a lock could
+ * not protect against the contexts that do interrupt loop() (an ISR, or on
+ * the ESP8266 an SDK callback such as Ticker's), which cannot wait for it.
+ * Every call comes from loop()'s context; an ESP8266 callback that needs the
+ * button hands over with schedule_function().
  *
  * Nothing is allocated; an instance holds its whole state.
  */
@@ -44,7 +49,8 @@
 #include <Arduino.h>
 #endif
 
-#if !defined(ARDUINO_ARCH_AVR)
+// The lock exists on the ESP32, and on the host for the tests
+#if defined(ARDUINO_ARCH_ESP32) || !defined(ARDUINO)
 #include <chrono>
 #include <mutex>
 #define BUTTON_EVENTS_LOCKED 1

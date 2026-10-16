@@ -2,6 +2,7 @@
 core_harness
 wrapper_test
 compile_check
+compile_check_8266
 compile_check_avr
 *.exe
 *.o

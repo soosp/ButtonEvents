@@ -18,7 +18,7 @@ and this project adheres to
   quiet); optional ignoring of a press held at start-up
 - `ButtonEvents`: GPIO or caller-supplied reader, callback in the owner's
   context, per-kind `take()` latches with an overrun count, `std::timed_mutex`
-  on ESP32 and ESP8266
+  on ESP32
 - Timing defaults overridable through `BUTTON_EVENTS_*` macros
 - Host tests (`test/`) and the examples `Basic` and `Esp32Task`
 
