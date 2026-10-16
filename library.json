@@ -1,0 +1,33 @@
+{
+  "name": "ButtonEvents",
+  "version": "0.1.0",
+  "description": "Press, release, hold and press-count events for a push button on ESP32, ESP8266 and AVR. Debounced, non-blocking, allocation-free and thread-safe.",
+  "keywords": [
+    "button",
+    "debounce",
+    "long press",
+    "multi-click",
+    "input",
+    "esp32",
+    "esp8266",
+    "avr"
+  ],
+  "authors": [
+    {
+      "name": "Péter Soós",
+      "url": "https://github.com/soosp"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/soosp/ButtonEvents"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/soosp/ButtonEvents",
+  "frameworks": "arduino",
+  "platforms": [
+    "espressif32",
+    "espressif8266",
+    "atmelavr"
+  ]
+}
