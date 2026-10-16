@@ -49,8 +49,7 @@
 #include <Arduino.h>
 #endif
 
-// The lock exists on the ESP32, and on the host for the tests
-#if defined(ARDUINO_ARCH_ESP32) || !defined(ARDUINO)
+#if !defined(ARDUINO_ARCH_AVR) && !defined(ARDUINO_ARCH_ESP8266)
 #include <chrono>
 #include <mutex>
 #define BUTTON_EVENTS_LOCKED 1
