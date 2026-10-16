@@ -17,7 +17,8 @@ sequence. What a duration or a count means is the application's decision.
 - Press counting with an exact count: a long press or more presses than
   `maxCount` drop the whole sequence instead of reporting a wrong number
 - A button already held at start-up can be ignored until it is released
-- GPIO input, or any caller-supplied reader (I/O expander, shift register)
+- GPIO input with the chip's pull resistor or one on the board, or any
+  caller-supplied reader (I/O expander, shift register)
 - Non-blocking `update()`, no interrupt, no task, no heap
 - Thread-safe on the ESP32: a callback in the owner's context, and per-kind
   latches that any other task can take events from
@@ -104,21 +105,50 @@ timing.longMs = 3000;
 ButtonEvents button(BUTTON_PIN, true, timing);
 ```
 
-`begin()` returns false if `debounceMs` is not below both `gapMs` and
-`longMs`, or `maxCount` is 0.
+`begin()` refuses a timing whose `debounceMs` is not below both `gapMs` and
+`longMs`, or whose `maxCount` is 0 (`Error::TIMING`).
 
 ## Input
 
 ```cpp
-ButtonEvents a(pin);                    // pressed = LOW, INPUT_PULLUP
-ButtonEvents b(pin, false);             // pressed = HIGH
-ButtonEvents c(readFn, ctx);            // bool readFn(void* ctx): true while held
+using Pull = ButtonEvents::Pull;
+
+ButtonEvents a(pin);                      // pressed = LOW, the chip's pull-up
+ButtonEvents b(pin, false);               // pressed = HIGH, the chip's pull-down
+ButtonEvents c(pin, true, Pull::BOARD);   // pressed = LOW, a pull-up on the board
+ButtonEvents d(readFn, ctx);              // bool readFn(void* ctx): true while held
 ```
 
-With `activeLow` false the pin is set to `INPUT_PULLDOWN` on the ESP32 and to
-`INPUT` elsewhere, where an external pull-down is needed. With a reader the
-pin set-up is the caller's; the reader is called outside the library's lock,
-so it may take the lock of a shared bus.
+The polarity and the place of the pull resistor are separate choices.
+`Pull::CHIP` (the default) asks for the chip's own resistor in the direction
+the polarity needs; `Pull::BOARD` sets the pin to `INPUT` and relies on one on
+the board. Where the chip has no resistor in that direction, `begin()` refuses
+with `Error::PULL` rather than leave the pin floating:
+
+|Chip|`CHIP`, active low|`CHIP`, active high|
+|----|------------------|-------------------|
+|ESP32|`INPUT_PULLUP`|`INPUT_PULLDOWN`|
+|ESP32, input-only GPIO 34–39|refused|refused|
+|ESP8266, GPIO 16|refused|`INPUT_PULLDOWN_16`|
+|ESP8266, other GPIOs|`INPUT_PULLUP`|refused|
+|AVR|`INPUT_PULLUP`|refused|
+
+With a reader the pin set-up is the caller's; the reader is called outside the
+library's lock, so it may take the lock of a shared bus.
+
+## Errors
+
+`begin()` returns false on failure, and `error()` tells why:
+
+|`Error`|Cause|
+|-------|-----|
+|`NONE`|`begin()` succeeded, or has not run|
+|`NO_READER`|constructed with a null reader|
+|`TIMING`|`debounceMs` not below both `gapMs` and `longMs`, or `maxCount` 0|
+|`PULL`|`Pull::CHIP`, but the chip has no such resistor on that pin|
+|`LOCK`|the lock could not be taken|
+
+After a failed `begin()`, `update()` does nothing.
 
 ## Running it
 

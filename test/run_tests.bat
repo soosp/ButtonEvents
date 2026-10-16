@@ -41,26 +41,34 @@ if errorlevel 1 set RC=1
 
 :c11
 echo ------------------------------------------------------------
-echo Building C++11 compile check (host, lock) ...
-g++ %FLAGS11% compile_check.cpp -o compile_check.exe
-if errorlevel 1 ( echo BUILD FAILED: compile_check.cpp & set RC=1 & goto :esp8266 )
-compile_check.exe
+echo Building C++11 platform check (host) ...
+g++ %FLAGS11% platform_check.cpp -o platform_check_host.exe
+if errorlevel 1 ( echo BUILD FAILED: platform_check.cpp [host] & set RC=1 & goto :esp32 )
+platform_check_host.exe
+if errorlevel 1 set RC=1
+
+:esp32
+echo ------------------------------------------------------------
+echo Building C++11 platform check (ESP32) ...
+g++ %FLAGS11% -DARDUINO -DARDUINO_ARCH_ESP32 platform_check.cpp -o platform_check_esp32.exe
+if errorlevel 1 ( echo BUILD FAILED: platform_check.cpp [ESP32] & set RC=1 & goto :esp8266 )
+platform_check_esp32.exe
 if errorlevel 1 set RC=1
 
 :esp8266
 echo ------------------------------------------------------------
-echo Building C++11 compile check (ESP8266, no lock) ...
-g++ %FLAGS11% -DARDUINO -DARDUINO_ARCH_ESP8266 compile_check.cpp -o compile_check_8266.exe
-if errorlevel 1 ( echo BUILD FAILED: compile_check.cpp [ESP8266] & set RC=1 & goto :avr )
-compile_check_8266.exe
+echo Building C++11 platform check (ESP8266) ...
+g++ %FLAGS11% -DARDUINO -DARDUINO_ARCH_ESP8266 platform_check.cpp -o platform_check_8266.exe
+if errorlevel 1 ( echo BUILD FAILED: platform_check.cpp [ESP8266] & set RC=1 & goto :avr )
+platform_check_8266.exe
 if errorlevel 1 set RC=1
 
 :avr
 echo ------------------------------------------------------------
-echo Building C++11 compile check (AVR, no lock) ...
-g++ %FLAGS11% -DARDUINO -DARDUINO_ARCH_AVR compile_check.cpp -o compile_check_avr.exe
-if errorlevel 1 ( echo BUILD FAILED: compile_check.cpp [AVR] & set RC=1 & goto :done )
-compile_check_avr.exe
+echo Building C++11 platform check (AVR) ...
+g++ %FLAGS11% -DARDUINO -DARDUINO_ARCH_AVR platform_check.cpp -o platform_check_avr.exe
+if errorlevel 1 ( echo BUILD FAILED: platform_check.cpp [AVR] & set RC=1 & goto :done )
+platform_check_avr.exe
 if errorlevel 1 set RC=1
 
 :done

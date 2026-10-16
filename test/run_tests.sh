@@ -37,9 +37,10 @@ build_and_run() {
 rc=0
 build_and_run core_harness.cpp  core_harness      "ButtonEventsCore suite"          "$FLAGS"   || rc=1
 build_and_run wrapper_test.cpp  wrapper_test      "ButtonEvents wrapper test"       "$FLAGS"   || rc=1
-build_and_run compile_check.cpp compile_check      "C++11 compile check (host, lock)"       "$FLAGS11" || rc=1
-build_and_run compile_check.cpp compile_check_8266 "C++11 compile check (ESP8266, no lock)" "$FLAGS11 -DARDUINO -DARDUINO_ARCH_ESP8266" || rc=1
-build_and_run compile_check.cpp compile_check_avr  "C++11 compile check (AVR, no lock)"     "$FLAGS11 -DARDUINO -DARDUINO_ARCH_AVR" || rc=1
+build_and_run platform_check.cpp platform_check_host  "C++11 platform check (host)"    "$FLAGS11" || rc=1
+build_and_run platform_check.cpp platform_check_esp32 "C++11 platform check (ESP32)"   "$FLAGS11 -DARDUINO -DARDUINO_ARCH_ESP32" || rc=1
+build_and_run platform_check.cpp platform_check_8266  "C++11 platform check (ESP8266)" "$FLAGS11 -DARDUINO -DARDUINO_ARCH_ESP8266" || rc=1
+build_and_run platform_check.cpp platform_check_avr   "C++11 platform check (AVR)"     "$FLAGS11 -DARDUINO -DARDUINO_ARCH_AVR" || rc=1
 
 echo "------------------------------------------------------------"
 if [ "$rc" -eq 0 ]; then

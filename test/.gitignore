@@ -1,8 +1,9 @@
 # Built host-test binaries
 core_harness
 wrapper_test
-compile_check
-compile_check_8266
-compile_check_avr
+platform_check_host
+platform_check_esp32
+platform_check_8266
+platform_check_avr
 *.exe
 *.o

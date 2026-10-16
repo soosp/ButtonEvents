@@ -7,11 +7,18 @@
  * with an input, a callback, a lock and per-kind latches for other tasks.
  *
  * ## Input
- * Either a GPIO (constructed with a pin and its polarity; begin() sets the
- * pin mode) or a ReadFn the caller supplies, for an expander or anything
- * else that can tell whether the button is held. With a ReadFn the caller
- * owns the pin set-up. The reader is called outside the lock, so a reader on
- * a shared bus may take that bus's own lock.
+ * Either a GPIO (constructed with a pin, its polarity and where its pull
+ * resistor is; begin() sets the pin mode) or a ReadFn the caller supplies,
+ * for an expander or anything else that can tell whether the button is held.
+ * With a ReadFn the caller owns the pin set-up. The reader is called outside
+ * the lock, so a reader on a shared bus may take that bus's own lock.
+ *
+ * Pull::CHIP asks for the chip's own resistor in the direction the polarity
+ * needs: a pull-up for an active-low button, a pull-down for an active-high
+ * one. begin() refuses (Error::PULL) where the chip has none: a pull-down on
+ * AVR and on the ESP8266 apart from GPIO16, a pull-up on the ESP8266's
+ * GPIO16, either on the ESP32's input-only GPIOs (34-39). Pull::BOARD sets
+ * the pin to INPUT and relies on a resistor on the board.
  *
  * ## Running it
  * update() is non-blocking and is called regularly from one context, the
@@ -33,6 +40,7 @@
  * - take() hands the latest event of a kind to any other task, once.
  *   Each kind has one slot: an event not taken before the next of its kind
  *   is replaced, and overruns() counts such replacements.
+ *
  * ## ESP8266 and AVR
  * There is no lock: these cores have no preemptive tasks, and a lock could
  * not protect against the contexts that do interrupt loop() (an ISR, or on
@@ -47,6 +55,9 @@
 
 #if defined(ARDUINO)
 #include <Arduino.h>
+#endif
+#if defined(ARDUINO_ARCH_ESP32)
+#include <driver/gpio.h>     // GPIO_IS_VALID_OUTPUT_GPIO
 #endif
 
 #if !defined(ARDUINO_ARCH_AVR) && !defined(ARDUINO_ARCH_ESP8266)
@@ -67,6 +78,22 @@ public:
     using EventData = ButtonEventsCore::EventData;
     using Timing    = ButtonEventsCore::Timing;
 
+    /// Where the GPIO's pull resistor is. (Not INTERNAL / EXTERNAL: the AVR
+    /// core defines both as macros for analogReference().)
+    enum class Pull : uint8_t {
+        CHIP = 0,   ///< The chip's own, in the direction the polarity needs
+        BOARD       ///< A resistor on the board; the pin is set to INPUT
+    };
+
+    /// Why begin() failed.
+    enum class Error : uint8_t {
+        NONE = 0,   ///< begin() succeeded, or has not run
+        NO_READER,  ///< Constructed with a null ReadFn
+        TIMING,     ///< The Timing fails ButtonEventsCore::isValid()
+        PULL,       ///< Pull::CHIP, but the chip has no such resistor on that pin
+        LOCK        ///< The lock could not be taken
+    };
+
     /// Tells whether the button is held (true) or not. Polarity is the
     /// reader's business.
     using ReadFn = bool (*)(void* ctx);
@@ -81,16 +108,26 @@ public:
 
 #if defined(ARDUINO)
     /**
-     * @brief A button on a GPIO. Does not touch the hardware; begin() does.
+     * @brief A button on a GPIO, pulled by the chip's own resistor. Does not
+     *        touch the hardware; begin() does.
      * @param pin       GPIO number.
-     * @param activeLow true: pressed reads LOW (pin set to INPUT_PULLUP);
-     *                  false: pressed reads HIGH (INPUT_PULLDOWN on ESP32,
-     *                  INPUT elsewhere, which needs an external pull-down).
+     * @param activeLow true: pressed reads LOW; false: pressed reads HIGH.
      * @param timing    Timing parameters.
      */
     explicit ButtonEvents(uint8_t pin, bool activeLow = true, const Timing& timing = Timing())
-        : _pin(pin), _activeLow(activeLow), _read(_readPin), _readCtx(this),
-          _cb(nullptr), _ready(false), _core(timing), _slots(), _overruns(0) {}
+        : ButtonEvents(pin, activeLow, Pull::CHIP, timing) {}
+
+    /**
+     * @brief A button on a GPIO. Does not touch the hardware; begin() does.
+     * @param pin       GPIO number.
+     * @param activeLow true: pressed reads LOW; false: pressed reads HIGH.
+     * @param pull      Where the pull resistor is.
+     * @param timing    Timing parameters.
+     */
+    ButtonEvents(uint8_t pin, bool activeLow, Pull pull, const Timing& timing = Timing())
+        : _pin(pin), _activeLow(activeLow), _pull(pull), _read(_readPin), _readCtx(this),
+          _cb(nullptr), _ready(false), _error(Error::NONE), _core(timing), _slots(),
+          _overruns(0) {}
 #endif
 
     /**
@@ -102,10 +139,10 @@ public:
     ButtonEvents(ReadFn read, void* ctx, const Timing& timing = Timing())
         :
 #if defined(ARDUINO)
-          _pin(0), _activeLow(true),
+          _pin(0), _activeLow(true), _pull(Pull::BOARD),
 #endif
-          _read(read), _readCtx(ctx), _cb(nullptr), _ready(false), _core(timing),
-          _slots(), _overruns(0) {}
+          _read(read), _readCtx(ctx), _cb(nullptr), _ready(false), _error(Error::NONE),
+          _core(timing), _slots(), _overruns(0) {}
 
     ButtonEvents(const ButtonEvents&) = delete;
     ButtonEvents& operator=(const ButtonEvents&) = delete;
@@ -116,31 +153,35 @@ public:
      *        validates the timing.
      * @param ignoreHeldAtStart true: a press already held now yields no event
      *        until released (default). false: it counts as a press starting now.
-     * @return false if the timing is invalid (ButtonEventsCore::isValid()) or
-     *         there is no reader; update() then does nothing.
+     * @return false on failure, error() tells why; update() then does nothing.
      */
     bool begin(bool ignoreHeldAtStart = true) { return begin(ignoreHeldAtStart, millis()); }
 #endif
 
     /// begin() at the given time (host tests, or a caller with its own clock).
     bool begin(bool ignoreHeldAtStart, uint32_t nowMs) {
+        _ready = false;
+        if (_read == nullptr) return _fail(Error::NO_READER);
+        if (!ButtonEventsCore::isValid(_core.timing())) return _fail(Error::TIMING);
 #if defined(ARDUINO)
         if (_read == _readPin) {
-#if defined(ARDUINO_ARCH_ESP32)
-            pinMode(_pin, _activeLow ? INPUT_PULLUP : INPUT_PULLDOWN);
-#else
-            pinMode(_pin, _activeLow ? INPUT_PULLUP : INPUT);
-#endif
+            uint8_t mode;
+            if (!_pinMode(mode)) return _fail(Error::PULL);
+            pinMode(_pin, mode);
         }
 #endif
-        if (_read == nullptr || !ButtonEventsCore::isValid(_core.timing())) return false;
         const bool pressed = _read(_readCtx);
-        if (!_lock()) return false;
+        if (!_lock()) return _fail(Error::LOCK);
         _core.start(pressed, nowMs, ignoreHeldAtStart);
         _unlock();
+        _error = Error::NONE;
         _ready = true;
         return true;
     }
+
+    /// Why the last begin() failed (Error::NONE after a successful one).
+    /// Owner's context.
+    Error error() const { return _error; }
 
     /**
      * @brief Registers the event callback. One callback; nullptr unregisters.
@@ -238,18 +279,52 @@ private:
 #endif
     }
 
+    bool _fail(Error e) {
+        _error = e;
+        return false;
+    }
+
 #if defined(ARDUINO)
+    /// The pin mode for _activeLow and _pull; false where the chip has no
+    /// resistor in the direction needed.
+    bool _pinMode(uint8_t& mode) const {
+        if (_pull == Pull::BOARD) {
+            mode = INPUT;
+            return true;
+        }
+#if defined(ARDUINO_ARCH_ESP32)
+        if (!GPIO_IS_VALID_OUTPUT_GPIO(_pin)) return false;    // 34-39: no pull resistors
+        mode = _activeLow ? INPUT_PULLUP : INPUT_PULLDOWN;
+        return true;
+#elif defined(ARDUINO_ARCH_ESP8266)
+        if (_pin == 16) {                                     // pull-down only
+            if (_activeLow) return false;
+            mode = INPUT_PULLDOWN_16;
+            return true;
+        }
+        if (!_activeLow) return false;
+        mode = INPUT_PULLUP;
+        return true;
+#else
+        if (!_activeLow) return false;                        // AVR: pull-up only
+        mode = INPUT_PULLUP;
+        return true;
+#endif
+    }
+
     static bool _readPin(void* self) {
         const ButtonEvents* b = static_cast<const ButtonEvents*>(self);
         return (digitalRead(b->_pin) == LOW) == b->_activeLow;
     }
     uint8_t _pin;
     bool    _activeLow;
+    Pull    _pull;
 #endif
     ReadFn  _read;
     void*   _readCtx;
     EventCb _cb;
     bool    _ready;     ///< begin() succeeded
+    Error   _error;     ///< Why the last begin() failed
 
     ButtonEventsCore _core;
     Slot             _slots[ButtonEventsCore::EVENT_KINDS];

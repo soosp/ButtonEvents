@@ -7,8 +7,9 @@ board needed.
 |----|--------------|
 |`core_harness.cpp`|`ButtonEventsCore.h`: every case below except C1–C6|
 |`wrapper_test.cpp`|`ButtonEvents.h` through the `ReadFn` constructor and the `nowMs` overloads: V5, C1–C6|
-|`compile_check.cpp`|both headers at C++11 (the AVR toolchain's level): the host build with the lock, and the GPIO build against the `Arduino.h` stub as ESP8266 and as AVR, without it|
-|`Arduino.h`|the stub for those two builds: the few calls the GPIO variant makes|
+|`platform_check.cpp`|both headers at C++11 (the AVR toolchain's level), built for the host and, against the stubs, as ESP32, ESP8266 and AVR: the lock where expected, `error()` for each cause, and the pin mode `begin()` sets or refuses for every polarity and `Pull`|
+|`Arduino.h`|stub for the Arduino builds: the calls the GPIO variant makes, `pinMode()` recorded, and the AVR core's `INTERNAL`/`EXTERNAL` macros to catch a name clash|
+|`driver/gpio.h`|stub for the ESP32 build: the input-only GPIOs 34–39|
 
 Run `run_tests.sh` (Linux, macOS, WSL, MSYS2) or `run_tests.bat` (Windows,
 MinGW-w64 / MSYS2 `g++` on PATH), or the VS Code build task (Ctrl+Shift+B).
