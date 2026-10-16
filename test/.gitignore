@@ -1,0 +1,7 @@
+# Built host-test binaries
+core_harness
+wrapper_test
+compile_check
+compile_check_avr
+*.exe
+*.o
