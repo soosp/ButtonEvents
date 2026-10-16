@@ -9,6 +9,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10.16
+
 ### Added
 
 - `ButtonEventsCore`: time-based debouncing with edges dated to the raw
@@ -22,4 +24,5 @@ and this project adheres to
 - Timing defaults overridable through `BUTTON_EVENTS_*` macros
 - Host tests (`test/`) and the examples `Basic` and `Esp32Task`
 
-[Unreleased]: https://github.com/soosp/ButtonEvents/commits/main
+[Unreleased]: https://github.com/soosp/ButtonEvents/compare/0.1.0...HEAD
+[0.1.0]: https://github.com/soosp/ButtonEvents/releases/tag/0.1.0
