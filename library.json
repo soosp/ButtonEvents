@@ -1,6 +1,6 @@
 {
   "name": "ButtonEvents",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Press, release, hold and press-count events for a push button on ESP32, ESP8266 and AVR. Debounced, non-blocking, allocation-free; thread-safe on ESP32.",
   "keywords": [
     "button",
