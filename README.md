@@ -55,6 +55,19 @@ void loop() {
 See `examples/Basic` for every event, and `examples/Esp32Task` for a button
 running in its own task with `loop()` taking the results.
 
+A callback that belongs to an object, or serves several buttons, gets its
+owner from the context given to `onEvent()`:
+
+```cpp
+button.onEvent(onButton, this);   // in the owner's begin()
+
+static void onButton(ButtonEvents::Event event, const ButtonEvents::EventData& data,
+                     ButtonEvents& button) {
+    Owner* self = static_cast<Owner*>(button.eventContext());
+    ...
+}
+```
+
 ## Events
 
 |Event|When|Data|
@@ -165,7 +178,8 @@ On the ESP32 the state is guarded by a `std::timed_mutex`.
 
 - `update()`, `begin()` and `onEvent()` belong to the owner.
 - The callback runs in the owner's context, after the lock is released, once
-  per event in order. It may call `take()` and the getters, not `update()`.
+  per event in order. It may call `take()`, the getters and
+  `eventContext()`, not `update()`.
 - `take(event, data)` hands the latest event of a kind to any task, once.
   Each kind has one slot; an event not taken before the next of its kind is
   replaced, and `overruns()` counts the replacements.

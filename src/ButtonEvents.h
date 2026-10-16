@@ -35,8 +35,8 @@
  *   interleave steps, which the lock keeps consistent but not meaningful.
  *   begin() and onEvent() belong to the owner as well.
  * - The callback runs in the owner's context, after the lock is released,
- *   once per event in order. It may call take() and the getters; it must not
- *   call update().
+ *   once per event in order. It may call take(), the getters and
+ *   eventContext(); it must not call update().
  * - take() hands the latest event of a kind to any other task, once.
  *   Each kind has one slot: an event not taken before the next of its kind
  *   is replaced, and overruns() counts such replacements.
@@ -126,7 +126,7 @@ public:
      */
     ButtonEvents(uint8_t pin, bool activeLow, Pull pull, const Timing& timing = Timing())
         : _pin(pin), _activeLow(activeLow), _pull(pull), _read(_readPin), _readCtx(this),
-          _cb(nullptr), _ready(false), _error(Error::NONE), _core(timing), _slots(),
+          _cb(nullptr), _cbCtx(nullptr), _ready(false), _error(Error::NONE), _core(timing), _slots(),
           _overruns(0) {}
 #endif
 
@@ -141,7 +141,8 @@ public:
 #if defined(ARDUINO)
           _pin(0), _activeLow(true), _pull(Pull::BOARD),
 #endif
-          _read(read), _readCtx(ctx), _cb(nullptr), _ready(false), _error(Error::NONE),
+          _read(read), _readCtx(ctx), _cb(nullptr), _cbCtx(nullptr), _ready(false),
+          _error(Error::NONE),
           _core(timing), _slots(), _overruns(0) {}
 
     ButtonEvents(const ButtonEvents&) = delete;
@@ -187,8 +188,17 @@ public:
      * @brief Registers the event callback. One callback; nullptr unregisters.
      *        Set it from the owner's context, before begin() or between
      *        two update() calls.
+     * @param cb  The callback.
+     * @param ctx Handed back by eventContext(), for the callback to find its
+     *            owner (an object, a channel) without a static.
      */
-    void onEvent(EventCb cb) { _cb = cb; }
+    void onEvent(EventCb cb, void* ctx = nullptr) {
+        _cb    = cb;
+        _cbCtx = ctx;
+    }
+
+    /// The ctx given to onEvent(); for the callback. Owner's context.
+    void* eventContext() const { return _cbCtx; }
 
 #if defined(ARDUINO)
     /// One step at millis().
@@ -323,6 +333,7 @@ private:
     ReadFn  _read;
     void*   _readCtx;
     EventCb _cb;
+    void*   _cbCtx;     ///< onEvent()'s ctx, for eventContext()
     bool    _ready;     ///< begin() succeeded
     Error   _error;     ///< Why the last begin() failed
 

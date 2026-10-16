@@ -9,6 +9,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- `onEvent(cb, ctx)` and `eventContext()`: a context for the callback, so
+  that one belonging to an object, or serving several buttons, finds its
+  owner without a static. `onEvent(cb)` stays as it was (no context)
+
 ## [0.2.0] - 2026-10-16
 
 ### Added

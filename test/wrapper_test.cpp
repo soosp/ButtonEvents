@@ -100,6 +100,27 @@ static void testCallback() {
         check(r.button.overruns() == 0, "C2", "no overruns"); }
 }
 
+// One callback for two buttons, each finding its own counter through
+// eventContext()
+static void countingCb(Event e, const EventData&, ButtonEvents& b) {
+    if (e == Event::PRESSED) ++*static_cast<int*>(b.eventContext());
+}
+
+static void testContext() {
+    std::printf("eventContext()\n");
+    {   Rig a, b; int na = 0, nb = 0;
+        check(a.button.eventContext() == nullptr, "C4", "no context before onEvent()");
+        a.button.onEvent(countingCb, &na);
+        b.button.onEvent(countingCb, &nb);
+        a.button.begin(true, a.now); b.button.begin(true, b.now);
+        a.hold(200); a.run(1000); a.hold(200); a.run(1000);
+        b.hold(200); b.run(1000);
+        check(na == 2 && nb == 1, "C4", "each button's own counter: " + std::to_string(na) +
+              ", " + std::to_string(nb));
+        a.button.onEvent(logCb);
+        check(a.button.eventContext() == nullptr, "C4", "onEvent() without ctx clears it"); }
+}
+
 static void testTake() {
     std::printf("take()\n");
     {   Rig r; r.button.begin(true, r.now);
@@ -167,6 +188,7 @@ static void testThreads() {
 int main() {
     testBegin();
     testCallback();
+    testContext();
     testTake();
     testThreads();
     std::printf("%d passed, %d failed\n", g_pass, g_fail);
